@@ -33,7 +33,7 @@ const server = app.listen(PORT, async () => {
     await sequelize.authenticate();
     console.log('Conexão com o banco de dados estabelecida com sucesso.');
     
-    await sequelize.sync({ alter: true });
+    await sequelize.sync({ force: true });
     console.log('Modelos do banco de dados sincronizados.');
 
     const createAdminUser = async () => {

@@ -1,14 +1,7 @@
-// arquivo: src/features/pagamento/pagamento.service.js
-// DESCRIÇÃO: Este código foi reestruturado para adotar os padrões de organização e robustez do Código 02.
-// As principais mudanças incluem:
-// 1. Uso de um objeto de serviço (pagamentoService) para exportar os métodos.
-// 2. Implementação de blocos try...catch para um tratamento de erros mais consistente.
-// 3. Nomenclatura dos métodos em português para padronização.
-// 4. Melhoria na lógica do webhook para cobrir mais status de pagamento.
-// 5. Troca de 'upsert' por 'create' para maior clareza na criação do pagamento.
-
+// Salve em: src/features/pagamento/pagamento.service.js
 const mercadopago = require('../../config/mercadoPago');
 const { Pedido, Pagamento, User } = require('../../models');
+const emailService = require('../../services/email.service');
 
 const pagamentoService = {
   /**
@@ -51,19 +44,20 @@ const pagamentoService = {
           pending: `${process.env.FRONTEND_URL}/meus-pedidos/${pedidoId}?status=pendente`,
         },
         auto_return: 'approved',
+        payment_methods: {
+            installments: 3 // Permite parcelar em até 3x
+        },
         external_reference: pedidoId.toString(),
         notification_url: `${process.env.BACKEND_URL}/api/pagamentos/webhook`,
       };
 
       const response = await mercadopago.preferences.create(preference);
 
-      // Usando 'create' em vez de 'upsert' para ser mais explícito, seguindo o padrão do Código 02.
-      // A lógica de negócio já impede a criação de uma nova preferência para um pedido já processado.
       await Pagamento.create({
         pedidoId: pedidoId,
-        gatewayId: response.body.id, // O ID da PREFERÊNCIA, que será atualizado no webhook para o ID do PAGAMENTO.
+        gatewayId: response.body.id,
         status: 'pendente',
-        metodo: 'mercadopago_pro',
+        metodo: 'mercadopago', // CORRIGIDO: Valor compatível com o ENUM do banco
         valor: pedido.valorTotal,
       });
 
@@ -72,7 +66,6 @@ const pagamentoService = {
         preferenceId: response.body.id,
       };
     } catch (error) {
-      // Padrão de tratamento de erro do Código 02
       console.error("Erro ao criar preferência de pagamento:", error);
       throw error;
     }
@@ -105,49 +98,39 @@ const pagamentoService = {
         return;
       }
 
-      // Atualiza o gatewayId com o ID do pagamento real, não mais da preferência
       pagamento.gatewayId = paymentId.toString();
 
-      // Estrutura de status aprimorada, inspirada no Código 02
       let novoStatusLocal;
       switch (paymentDetails.status) {
-        case 'approved':
-          novoStatusLocal = 'aprovado';
-          break;
+        case 'approved': novoStatusLocal = 'aprovado'; break;
         case 'rejected':
-        case 'cancelled':
-          novoStatusLocal = 'recusado';
-          break;
+        case 'cancelled': novoStatusLocal = 'recusado'; break;
         case 'pending':
-        case 'in_process':
-          novoStatusLocal = 'pendente';
-          break;
-        default:
-          novoStatusLocal = pagamento.status; // Mantém o status atual se for um desconhecido
-          break;
+        case 'in_process': novoStatusLocal = 'pendente'; break;
+        default: novoStatusLocal = pagamento.status; break;
       }
       
-      // Salva apenas se houver mudança de status
       if (pagamento.status !== novoStatusLocal) {
           pagamento.status = novoStatusLocal;
           await pagamento.save();
           console.log(`Pagamento do Pedido ${pedidoId} atualizado para '${novoStatusLocal}'.`);
       }
 
-      // Lógica de atualização do Pedido (mantida do Código 01 original)
-      const pedido = await Pedido.findByPk(pedidoId);
+      const pedido = await Pedido.findByPk(pedidoId, { include: [{ model: User, as: 'cliente' }] });
       if (novoStatusLocal === 'aprovado' && pedido.status === 'Aguardando Pagamento') {
         pedido.status = 'Processando';
         await pedido.save();
         console.log(`Pedido ${pedidoId} atualizado para 'Processando'.`);
-        // TODO: Enviar e-mail de confirmação para o cliente e admin.
+        
+        // Envia e-mail de confirmação para o cliente
+        await emailService.enviarConfirmacaoPedido(pedido);
+
       } else if (novoStatusLocal === 'recusado' && pedido.status === 'Aguardando Pagamento') {
         pedido.status = 'Cancelado';
         await pedido.save();
         console.log(`Pedido ${pedidoId} atualizado para 'Cancelado'.`);
       }
     } catch (error) {
-      // Padrão de tratamento de erro do Código 02
       console.error("Erro ao processar webhook do Mercado Pago:", error);
       throw error;
     }

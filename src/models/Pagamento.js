@@ -1,3 +1,4 @@
+// Salve em: src/models/Pagamento.js
 'use strict';
 const { Model } = require('sequelize');
 
@@ -8,9 +9,17 @@ module.exports = (sequelize, DataTypes) => {
     }
   }
   Pagamento.init({
-    gatewayId: DataTypes.STRING, // ID da transação no gateway (ex: Mercado Pago)
+    gatewayId: DataTypes.STRING,
     status: DataTypes.ENUM('pendente', 'aprovado', 'recusado', 'estornado'),
-    metodo: DataTypes.ENUM('pix', 'boleto', 'cartao_credito'),
+    metodo: { // <-- Envolvendo em um objeto para mais controle
+      type: DataTypes.ENUM(
+        'pix',
+        'boleto',
+        'cartao_credito',
+        'mercadopago' // --- ADICIONE ESTA OPÇÃO ---
+      ),
+      allowNull: true // Permite ser nulo se o método não for identificado
+    },
     valor: DataTypes.DECIMAL(10, 2)
   }, {
     sequelize,
