@@ -1,11 +1,17 @@
-// arquivo: app.js
-require('dotenv').config();
+// Salve em: app.js
+
+// --- CORREÇÃO APLICADA AQUI ---
+// 1. GARANTA QUE ESTA SEJA A PRIMEIRA LINHA DO ARQUIVO
+// Isso carrega as variáveis de ambiente antes de qualquer outro código ser executado.
+require('dotenv').config(); 
+// --- FIM DA CORREÇÃO ---
+
 const express = require('express');
-const cors =require('cors');
+const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const { sequelize, User } = require('./src/models');
 const mainRouter = require('./src/routes');
-const errorHandler = require('./src/middlewares/errorHandler.middleware'); // <-- 1. IMPORTE O NOVO MIDDLEWARE
+const errorHandler = require('./src/middlewares/errorHandler.middleware');
 
 const app = express();
 
@@ -16,22 +22,18 @@ app.use(express.json());
 // Rota principal da API
 app.use('/api', mainRouter);
 
-
-// --- 2. ADICIONE O MIDDLEWARE DE ERRO AQUI ---
-// Ele DEVE ser o último middleware a ser adicionado, depois de todas as rotas.
-// Se um erro ocorrer em qualquer rota acima, ele cairá aqui.
+// Middleware de Erro (deve ser o último)
 app.use(errorHandler);
-
 
 const PORT = process.env.PORT || 3001;
 
-const server = app.listen(PORT, async () => { // <-- Mudei para 'server' para poder fechar depois
+const server = app.listen(PORT, async () => {
   console.log(`Servidor rodando na porta ${PORT}`);
   try {
     await sequelize.authenticate();
     console.log('Conexão com o banco de dados estabelecida com sucesso.');
     
-    await sequelize.sync({ alter: true }); // Mudei para alter: true, que é mais seguro
+    await sequelize.sync({ alter: true });
     console.log('Modelos do banco de dados sincronizados.');
 
     const createAdminUser = async () => {
@@ -64,25 +66,18 @@ const server = app.listen(PORT, async () => { // <-- Mudei para 'server' para po
   }
 });
 
-
-// --- 3. ADICIONE A PROTEÇÃO FINAL CONTRA CRASHES ---
-// Pega exceções que não foram capturadas em nenhum lugar no código
+// Proteção contra crashes
 process.on('uncaughtException', (err) => {
   console.error('💥 EXCEÇÃO NÃO CAPTURADA! Desligando o servidor...');
   console.error(err.name, err.message);
-  console.error(err.stack);
-  // Fecha o servidor e encerra o processo
   server.close(() => {
-    process.exit(1); // 1 indica que saiu com erro
+    process.exit(1);
   });
 });
 
-// Pega rejeições de Promises que não foram capturadas (ex: um await sem catch)
 process.on('unhandledRejection', (err) => {
   console.error('💥 REJEIÇÃO DE PROMISE NÃO TRATADA! Desligando o servidor...');
   console.error(err.name, err.message);
-  console.error(err.stack);
-  // Fecha o servidor e encerra o processo
   server.close(() => {
     process.exit(1);
   });
