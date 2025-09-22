@@ -1,0 +1,26 @@
+{
+  "development": {
+    "username": "certidoesdb",
+    "password": "certidoesdb",
+    "database": "certidoesdb",
+    "host": "69.62.99.122",
+    "port": 6000,
+    "dialect": "postgres"
+  },
+  "test": {
+    "username": "certidoesdb",
+    "password": "certidoesdb",
+    "database": "certidoesdb",
+    "host": "69.62.99.122",
+    "port": 6000,
+    "dialect": "postgres"
+  },
+  "production": {
+    "username": "certidoesdb",
+    "password": "certidoesdb",
+    "database": "certidoesdb",
+    "host": "69.62.99.122",
+    "port": 6000,
+    "dialect": "postgres"
+  }
+}

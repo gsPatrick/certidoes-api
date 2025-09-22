@@ -1,0 +1,1087 @@
+{
+  "name": "My workflow - Fixed with Error Handling",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "n8n",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -100,
+        -180
+      ],
+      "id": "3a39940d-1bae-410e-b19c-8b8916b4453d",
+      "name": "Webhook",
+      "webhookId": "3a3a044b-7492-4cf6-8364-bd4da2e95e09"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b37f9479-b2fe-4cc8-a442-ceb741b49dec",
+              "name": "code",
+              "value": "={{ $json.query.code }}",
+              "type": "string"
+            },
+            {
+              "id": "86458fb4-6858-40c4-9413-c9fe55be8395",
+              "name": "state",
+              "value": "={{ $json.query.state }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        80,
+        -180
+      ],
+      "id": "4cdfa3ba-c82b-4290-b36d-b646bbf51d09",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://bling.com.br/Api/v3/oauth/token",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "code",
+              "value": "={{ $json.code }}"
+            },
+            {
+              "name": "redirect_uri",
+              "value": "https://n8n-n8n.r954jc.easypanel.host/webhook-test/n8n"
+            },
+            {
+              "name": "grant_type",
+              "value": "authorization_code"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        80,
+        80
+      ],
+      "id": "685d5175-37a8-40ab-a368-09ea24fe4b4d",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "CZrcAqR5aenwlpyH",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0616eb2a-e3ef-4668-bab0-76045a667026",
+              "name": "access_token",
+              "value": "={{ $json.token }}",
+              "type": "string"
+            },
+            {
+              "id": "1c7e0386-670a-426e-85a9-911933e9285e",
+              "name": "scope",
+              "value": "={{ $json.scope }}",
+              "type": "string"
+            },
+            {
+              "id": "2897ee0f-96b2-44d0-b61d-2be6e0cf65f2",
+              "name": "refresh_token",
+              "value": "={{ $json.refresh_token }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        80,
+        440
+      ],
+      "id": "9eef4230-857c-4ab6-b40e-fb95bac39348",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "url": "https://www.bling.com.br/Api/v3/pedidos/vendas?idSituacao=299240",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        280,
+        440
+      ],
+      "id": "94c34404-850e-4c11-adac-71ca41e852df",
+      "name": "Get 'Aguardando Retirada' from Bling"
+    },
+    {
+      "parameters": {
+        "operation": "splitOutItems",
+        "fieldToSplitOut": "data"
+      },
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 3,
+      "position": [
+        480,
+        440
+      ],
+      "id": "7649d031-64d4-47b2-9a00-349f2b84b6f1",
+      "name": "Split Out Orders"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7478963e-e4e3-4dfc-b3e2-8fb96fe44d74",
+              "name": "order_number_shopify",
+              "value": "={{ $json.numeroLoja }}",
+              "type": "string"
+            },
+            {
+              "id": "6ce253fc-e712-4839-b825-65ccf0f3bf98",
+              "name": "pedido_id_bling",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        880,
+        440
+      ],
+      "id": "60089eab-6b55-45ab-9682-bcd885aa42ee",
+      "name": "Extract Bling Data"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 2
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -280,
+        440
+      ],
+      "id": "01f3319d-57d7-4bcc-b097-369fc56b02ee",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT token FROM bling_token WHERE id = 1;"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -100,
+        440
+      ],
+      "id": "13c192fa-1273-4537-870a-3f61b4a180c0",
+      "name": "Postgres2",
+      "credentials": {
+        "postgres": {
+          "id": "0J4Q0OWgB0ePkfLz",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO bling_token (id, token)\nVALUES (1, '{{ $('HTTP Request').item.json.access_token }}')\nON CONFLICT (id)\nDO UPDATE SET token = EXCLUDED.token, created_at = NOW();"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        480,
+        80
+      ],
+      "id": "f2f6a29c-9176-4406-bcb7-70c6214eebf4",
+      "name": "Postgres",
+      "credentials": {
+        "postgres": {
+          "id": "0J4Q0OWgB0ePkfLz",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "CREATE TABLE IF NOT EXISTS bling_token (\n    id SERIAL PRIMARY KEY,\n    token VARCHAR(255) NOT NULL,\n    created_at TIMESTAMP DEFAULT NOW()\n);"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        280,
+        80
+      ],
+      "id": "b7881eb7-f6bb-41c3-b5a2-dd7a19c01b80",
+      "name": "Postgres1",
+      "credentials": {
+        "postgres": {
+          "id": "0J4Q0OWgB0ePkfLz",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://cs-amouh.myshopify.com/admin/api/2025-01/graphql.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Shopify-Access-Token",
+              "value": "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"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"query getOrderDetails($orderNumber: String!) { orders(first: 1, query: $orderNumber) { edges { node { id name fulfillmentOrders(first: 10) { edges { node { id status requestStatus lineItems(first: 50) { edges { node { id remainingQuantity } } } } } } } } } }\",\n  \"variables\": {\n    \"orderNumber\": \"name:{{ $json.order_number_shopify }}\"\n  }\n}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        440
+      ],
+      "id": "2711d948-4e3f-40c2-9e20-80410ff2cd01",
+      "name": "Find Order by Number in Shopify"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.numeroLoja }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        440
+      ],
+      "id": "0d632551-7890-4a30-898e-4a6c2275b630",
+      "name": "IF has Shopify Order Number?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.data && $json.data.orders && $json.data.orders.edges && $json.data.orders.edges.length > 0 }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        440
+      ],
+      "id": "e8392186-0ac3-4a63-b1d6-444855476a6d",
+      "name": "IF Order Found in Shopify?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "shopify_order_id",
+              "name": "shopify_order_id",
+              "value": "={{ $json.data.orders.edges[0].node.id }}",
+              "type": "string"
+            },
+            {
+              "id": "order_name",
+              "name": "order_name",
+              "value": "={{ $json.data.orders.edges[0].node.name }}",
+              "type": "string"
+            },
+            {
+              "id": "fulfillment_orders",
+              "name": "fulfillment_orders",
+              "value": "={{ JSON.stringify($json.data.orders.edges[0].node.fulfillmentOrders.edges) }}",
+              "type": "string"
+            },
+            {
+              "id": "pedido_id_bling_copy",
+              "name": "pedido_id_bling",
+              "value": "={{ $('Extract Bling Data').item.json.pedido_id_bling }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1500,
+        360
+      ],
+      "id": "55e2d67a-18b0-466c-941d-d227916382fd",
+      "name": "Extract Order Data"
+    },
+    {
+      "parameters": {
+        "operation": "splitOutItems",
+        "fieldToSplitOut": "fulfillment_orders",
+        "include": "noOtherFields"
+      },
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 3,
+      "position": [
+        1700,
+        360
+      ],
+      "id": "split_fulfillment_orders",
+      "name": "Split Fulfillment Orders"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.node.status }}",
+              "operation": "equal",
+              "value2": "OPEN"
+            },
+            {
+              "value1": "={{ $json.node.requestStatus }}",
+              "operation": "equal", 
+              "value2": "UNSUBMITTED"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1900,
+        360
+      ],
+      "id": "check_fulfillment_status",
+      "name": "Check if Ready for Pickup"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fulfillment_order_id",
+              "name": "fulfillment_order_id",
+              "value": "={{ $json.node.id }}",
+              "type": "string"
+            },
+            {
+              "id": "status",
+              "name": "status",
+              "value": "={{ $json.node.status }}",
+              "type": "string"
+            },
+            {
+              "id": "request_status", 
+              "name": "request_status",
+              "value": "={{ $json.node.requestStatus }}",
+              "type": "string"
+            },
+            {
+              "id": "line_items_count",
+              "name": "line_items_count",
+              "value": "={{ $json.node.lineItems.edges.length }}",
+              "type": "number"
+            },
+            {
+              "id": "pedido_id_bling_final",
+              "name": "pedido_id_bling",
+              "value": "={{ $('Extract Order Data').item.json.pedido_id_bling }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2100,
+        280
+      ],
+      "id": "prepare_fulfillment_data",
+      "name": "Prepare Fulfillment Data"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://cs-amouh.myshopify.com/admin/api/2025-01/graphql.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Shopify-Access-Token",
+              "value": "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"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"mutation fulfillmentOrderLineItemsPreparedForPickup($input: FulfillmentOrderLineItemsPreparedForPickupInput!) { fulfillmentOrderLineItemsPreparedForPickup(input: $input) { userErrors { field message } } }\",\n  \"variables\": {\n    \"input\": {\n      \"lineItemsByFulfillmentOrder\": [\n        {\n          \"fulfillmentOrderId\": \"{{ $json.fulfillment_order_id }}\"\n        }\n      ]\n    }\n  }\n}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2300,
+        280
+      ],
+      "id": "f5108bd9-8f0d-4050-8919-df41b07248c8",
+      "name": "Mark as Ready for Pickup"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.data && $json.data.fulfillmentOrderLineItemsPreparedForPickup && $json.data.fulfillmentOrderLineItemsPreparedForPickup.userErrors && $json.data.fulfillmentOrderLineItemsPreparedForPickup.userErrors.length === 0 }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2500,
+        280
+      ],
+      "id": "check_shopify_success",
+      "name": "Check Shopify Success"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://www.bling.com.br/Api/v3/pedidos/vendas/{{ $('Prepare Fulfillment Data').item.json.pedido_id_bling }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Postgres2').item.json.token }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"idSituacao\": 299241\n}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2700,
+        200
+      ],
+      "id": "update_bling_status",
+      "name": "Update Bling Status"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "log_id1",
+              "name": "error_message",
+              "value": "=Pedido sem numeroLoja do Shopify",
+              "type": "string"
+            },
+            {
+              "id": "log_id2",
+              "name": "bling_order_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "log_id3",
+              "name": "numero_loja",
+              "value": "={{ $json.numeroLoja }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        880,
+        600
+      ],
+      "id": "log_no_shopify_id",
+      "name": "Log No Shopify Order Number"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "log_id1",
+              "name": "error_message",
+              "value": "=Pedido não encontrado no Shopify pelo número da loja",
+              "type": "string"
+            },
+            {
+              "id": "log_id2",
+              "name": "shopify_search_term",
+              "value": "={{ $('Extract Bling Data').item.json.order_number_shopify }}",
+              "type": "string"
+            },
+            {
+              "id": "log_id3",
+              "name": "response_data",
+              "value": "={{ JSON.stringify($json) }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1500,
+        520
+      ],
+      "id": "log_order_not_found",
+      "name": "Log Order Not Found"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "log_not_ready",
+              "name": "warning_message",
+              "value": "=Fulfillment Order não está pronto para pickup",
+              "type": "string"
+            },
+            {
+              "id": "log_status",
+              "name": "current_status",
+              "value": "={{ $json.node.status }}",
+              "type": "string"
+            },
+            {
+              "id": "log_request_status",
+              "name": "request_status",
+              "value": "={{ $json.node.requestStatus }}",
+              "type": "string"
+            },
+            {
+              "id": "log_fulfillment_id",
+              "name": "fulfillment_order_id",
+              "value": "={{ $json.node.id }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2100,
+        440
+      ],
+      "id": "log_not_ready_for_pickup",
+      "name": "Log Not Ready for Pickup"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "shopify_error",
+              "name": "shopify_error",
+              "value": "=Erro ao marcar como pronto no Shopify",
+              "type": "string"
+            },
+            {
+              "id": "user_errors",
+              "name": "user_errors",
+              "value": "={{ JSON.stringify($json.data.fulfillmentOrderLineItemsPreparedForPickup.userErrors) }}",
+              "type": "string"
+            },
+            {
+              "id": "fulfillment_id",
+              "name": "fulfillment_order_id",
+              "value": "={{ $('Prepare Fulfillment Data').item.json.fulfillment_order_id }}",
+              "type": "string"
+            },
+            {
+              "id": "bling_id",
+              "name": "bling_order_id",
+              "value": "={{ $('Prepare Fulfillment Data').item.json.pedido_id_bling }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2700,
+        360
+      ],
+      "id": "log_shopify_error",
+      "name": "Log Shopify Error"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.statusCode }}",
+              "operation": "equal",
+              "value2": 200
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2900,
+        200
+      ],
+      "id": "check_bling_success",
+      "name": "Check Bling Success"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "success_msg",
+              "name": "success_message",
+              "value": "=✅ Pedido processado: Shopify→Ready for Pickup | Bling→299240→299241",
+              "type": "string"
+            },
+            {
+              "id": "bling_order",
+              "name": "bling_order_id",
+              "value": "={{ $('Prepare Fulfillment Data').item.json.pedido_id_bling }}",
+              "type": "string"
+            },
+            {
+              "id": "shopify_fulfillment",
+              "name": "shopify_fulfillment_id",
+              "value": "={{ $('Prepare Fulfillment Data').item.json.fulfillment_order_id }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3100,
+        120
+      ],
+      "id": "log_complete_success",
+      "name": "Log Complete Success"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "bling_error",
+              "name": "bling_error",
+              "value": "=❌ Shopify OK mas erro no Bling",
+              "type": "string"
+            },
+            {
+              "id": "bling_response",
+              "name": "bling_response",
+              "value": "={{ JSON.stringify($json) }}",
+              "type": "string"
+            },
+            {
+              "id": "bling_order",
+              "name": "bling_order_id",
+              "value": "={{ $('Prepare Fulfillment Data').item.json.pedido_id_bling }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3100,
+        280
+      ],
+      "id": "log_bling_error",
+      "name": "Log Bling Error"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Postgres1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Get 'Aguardando Retirada' from Bling",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get 'Aguardando Retirada' from Bling": {
+      "main": [
+        [
+          {
+            "node": "Split Out Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out Orders": {
+      "main": [
+        [
+          {
+            "node": "IF has Shopify Order Number?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Bling Data": {
+      "main": [
+        [
+          {
+            "node": "Find Order by Number in Shopify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Postgres2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres2": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres": {
+      "main": [
+        []
+      ]
+    },
+    "Postgres1": {
+      "main": [
+        [
+          {
+            "node": "Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Order by Number in Shopify": {
+      "main": [
+        [
+          {
+            "node": "IF Order Found in Shopify?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF has Shopify Order Number?": {
+      "main": [
+        [
+          {
+            "node": "Extract Bling Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log No Shopify Order Number",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Order Found in Shopify?": {
+      "main": [
+        [
+          {
+            "node": "Extract Order Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Order Not Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Order Data": {
+      "main": [
+        [
+          {
+            "node": "Split Fulfillment Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Fulfillment Orders": {
+      "main": [
+        [
+          {
+            "node": "Check if Ready for Pickup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Ready for Pickup": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fulfillment Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Not Ready for Pickup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fulfillment Data": {
+      "main": [
+        [
+          {
+            "node": "Mark as Ready for Pickup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark as Ready for Pickup": {
+      "main": [
+        [
+          {
+            "node": "Check Shopify Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Shopify Success": {
+      "main": [
+        [
+          {
+            "node": "Update Bling Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Shopify Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Bling Status": {
+      "main": [
+        [
+          {
+            "node": "Check Bling Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Bling Success": {
+      "main": [
+        [
+          {
+            "node": "Log Complete Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Bling Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
