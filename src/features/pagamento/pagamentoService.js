@@ -1,92 +1,70 @@
-const mercadopago = require("../config/mercadoPago")
-const { Pagamento, Pedido, Usuario, AssinaturaUsuario } = require("../models")
-const pedidoService = require("./pedidoService")
-const facebookCapiService = require("./facebookCapiService"); // <-- NOVO: Importe o novo serviço
-
-// Helper para formatar datas em ISO com offset para MercadoPago
-function formatDateToPreference(date) {
-  const pad = (n) => String(n).padStart(2, '0')
-  const padMs = (n) => String(n).padStart(3, '0')
-  
-  const year = date.getFullYear()
-  const month = pad(date.getMonth() + 1)
-  const day = pad(date.getDate())
-  const hours = pad(date.getHours())
-  const minutes = pad(date.getMinutes())
-  const seconds = pad(date.getSeconds())
-  const ms = padMs(date.getMilliseconds())
-  
-  const offset = -date.getTimezoneOffset()
-  const offsetHours = Math.floor(Math.abs(offset) / 60)
-  const offsetMinutes = Math.abs(offset) % 60
-  const offsetSign = offset >= 0 ? '-' : '+'
-  const offsetFormatted = `${offsetSign}${pad(offsetHours)}:${pad(offsetMinutes)}`
-  
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${ms}${offsetFormatted}`
-}
-
-function getMercadoPagoDateFormat(date) {
-  return date.toISOString().replace('Z', '-03:00'); // Força o fuso de Brasília (GMT-3)
-}
+// Salve em: src/features/pagamento/pagamento.service.js
+const mercadopago = require('../../config/mercadoPago');
+const { Pedido, Pagamento, User } = require('../../models');
+const emailService = require('../../services/email.service'); // <-- 1. IMPORTE O SERVIÇO DE E-MAIL
 
 const pagamentoService = {
-  async criarCheckoutPro(pedidoId, usuarioId) {
+  /**
+   * Cria uma preferência de pagamento no Mercado Pago para um pedido.
+   * @param {number} pedidoId - O ID do pedido criado no nosso banco.
+   * @param {number} userId - O ID do usuário logado.
+   * @returns {object} - A URL de checkout e o ID da preferência.
+   */
+  async criarPreferenciaPagamento(pedidoId, userId) {
     try {
       const pedido = await Pedido.findOne({
-        where: { id: pedidoId, usuarioId },
-        include: [{ model: Usuario }],
+        where: { id: pedidoId, userId },
+        include: [{ model: User, as: 'cliente' }],
       });
 
-      if (!pedido) throw new Error("Pedido não encontrado");
-      if (pedido.status !== "pendente") throw new Error("Pedido já foi processado");
-
-      const items = pedido.itens.map((item) => ({
-        id: item.variacaoId ? item.variacaoId.toString() : item.produtoId.toString(),
-        title: item.nome,
-        unit_price: Number(item.preco),
-        quantity: item.quantidade,
-        category_id: "virtual_goods", // Categoria genérica
-      }));
-
-      if (pedido.valorFrete && pedido.valorFrete > 0) {
-        items.push({
-          id: "frete",
-          title: "Custo de Envio",
-          unit_price: Number(pedido.valorFrete),
-          quantity: 1,
-          category_id: "shipping",
-        });
+      if (!pedido) {
+        const error = new Error('Pedido não encontrado ou não pertence ao usuário.');
+        error.statusCode = 404;
+        throw error;
+      }
+      if (pedido.status !== 'Aguardando Pagamento') {
+        const error = new Error('Este pedido já foi processado ou pago.');
+        error.statusCode = 400;
+        throw error;
       }
 
-      // --- USANDO A NOVA FUNÇÃO DE DATA ---
-      const now = new Date();
-      const expirationDate = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // Expira em 24 horas
+      const items = [{
+        id: pedido.id.toString(),
+        title: `Pedido de Certidões - Protocolo #${pedido.protocolo}`,
+        unit_price: Number(pedido.valorTotal),
+        quantity: 1,
+        category_id: "services",
+      }];
 
       const preference = {
         items,
-        payer: { name: pedido.Usuario.nome, email: pedido.Usuario.email },
-        back_urls: {
-          success: `${process.env.FRONTEND_URL}/pagamento/sucesso?pedido=${pedidoId}`,
-          failure: `${process.env.FRONTEND_URL}/pagamento/erro?pedido=${pedidoId}`,
-          pending: `${process.env.FRONTEND_URL}/pagamento/pendente?pedido=${pedidoId}`,
+        payer: {
+          name: pedido.cliente.nome,
+          email: pedido.cliente.email,
         },
-        auto_return: "approved",
+        back_urls: {
+          success: `${process.env.FRONTEND_URL}/meus-pedidos/${pedidoId}?status=sucesso`,
+          failure: `${process.env.FRONTEND_URL}/meus-pedidos/${pedidoId}?status=falha`,
+          pending: `${process.env.FRONTEND_URL}/meus-pedidos/${pedidoId}?status=pendente`,
+        },
+        auto_return: 'approved',
+        // --- 2. ADICIONAR PARCELAMENTO ---
+        payment_methods: {
+          installments: 3 // Permite parcelar em até 3x
+        },
+        // --- FIM DA ADIÇÃO ---
         external_reference: pedidoId.toString(),
-        notification_url: `${process.env.BASE_URL}/api/pagamentos/webhook`,
-        statement_descriptor: "ATELIERAISA"
+        notification_url: `${process.env.BACKEND_URL}/api/pagamentos/webhook`,
       };
-      //teste
 
       const response = await mercadopago.preferences.create(preference);
 
       await Pagamento.create({
-        pedidoId,
-        usuarioId,
-        valor: pedido.total,
-        metodo: "mercado_pago",
-        status: "pendente",
-        transacaoId: response.body.id,
-        dadosTransacao: response.body,
+        pedidoId: pedidoId,
+        gatewayId: response.body.id,
+        status: 'pendente',
+        metodo: 'mercadopago_pro', // Este campo pode ser melhorado no futuro
+        valor: pedido.valorTotal,
       });
 
       return {
@@ -94,160 +72,95 @@ const pagamentoService = {
         preferenceId: response.body.id,
       };
     } catch (error) {
-      console.error("Erro ao criar checkout:", error);
-      throw error;
+      console.error("Erro ao criar preferência de pagamento:", error);
+      const newError = new Error(error.message || 'Falha ao gerar preferência de pagamento.');
+      newError.statusCode = error.statusCode || 500;
+      throw newError;
     }
   },
 
+  /**
+   * Processa as notificações de webhook do Mercado Pago.
+   * @param {object} dados - O corpo da notificação do webhook.
+   */
   async processarWebhook(dados) {
     try {
-      const { type, data, action } = dados;
-
-      if (type === "payment") {
-        const paymentId = data.id
-
-        const payment = await mercadopago.payment.findById(paymentId)
-        const paymentData = payment.body
-
-        const pedidoId = paymentData.external_reference
-
-        if (!pedidoId) {
-          console.log("Webhook sem external_reference")
-          return
-        }
-
-        const pagamento = await Pagamento.findOne({
-          where: { pedidoId },
-          include: [{ 
-            model: Pedido, 
-            include: [{ model: Usuario }] // <-- Aninhar a inclusão do Usuário
-          }],
-        })
-
-        if (!pagamento) {
-          console.log(`Pagamento não encontrado para pedido ${pedidoId}`)
-          return
-        }
-
-        let novoStatus = "pendente"
-
-        switch (paymentData.status) {
-          case "approved":
-            novoStatus = "aprovado"
-            break
-          case "rejected":
-            novoStatus = "rejeitado"
-            break
-          case "cancelled":
-            novoStatus = "cancelado"
-            break
-          case "pending":
-          case "in_process":
-            novoStatus = "pendente"
-            break
-        }
-
-        await pagamento.update({
-          status: novoStatus,
-          dadosTransacao: paymentData,
-        })
-
-        if (novoStatus === "aprovado") {
-          await pedidoService.atualizarStatusPedido(pedidoId, "pago");
-
-          // !! ESTE É O LOCAL CORRETO PARA ENVIAR O EVENTO !!
-          if (pagamento.Pedido && pagamento.Pedido.Usuario) {
-             facebookCapiService.sendPurchaseEvent(pagamento.Pedido, pagamento.Pedido.Usuario);
-          } else {
-             console.error(`Facebook CAPI: Não foi possível enviar evento para o pedido #${pedidoId} pois os dados do pedido ou usuário não foram carregados.`);
-          }
-          
-        } else if (novoStatus === "rejeitado" || novoStatus === "cancelado") {
-          await pedidoService.cancelarPedido(pedidoId)
-        }
-
-        console.log(`Pagamento ${paymentId} atualizado para ${novoStatus}`)
-      } else if (type === "preapproval") {
-        // ... (seu código de assinatura permanece o mesmo)
+      if (dados.type !== 'payment') {
+        console.log(`Webhook do tipo '${dados.type}' ignorado.`);
+        return;
       }
-    } catch (error) {
-      console.error("Erro ao processar webhook:", error)
-      throw error
-    }
-  },
 
-  async verificarStatusPagamento(pedidoId) {
-    try {
-      const pagamento = await Pagamento.findOne({
-        where: { pedidoId },
-        include: [{ model: Pedido }],
-      })
+      const paymentId = dados.data.id;
+      const { body: paymentDetails } = await mercadopago.payment.findById(Number(paymentId));
+      const pedidoId = paymentDetails.external_reference;
+
+      if (!pedidoId) {
+        console.warn(`Webhook para pagamento ${paymentId} recebido sem external_reference.`);
+        return;
+      }
+
+      const pagamento = await Pagamento.findOne({ where: { pedidoId } });
 
       if (!pagamento) {
-        throw new Error("Pagamento não encontrado")
+        console.error(`Webhook: Pagamento para o pedido ${pedidoId} não encontrado no banco.`);
+        return;
       }
 
-      if (pagamento.transacaoId) {
-        try {
-          const payment = await mercadopago.payment.findById(pagamento.transacaoId)
-          const paymentData = payment.body
+      pagamento.gatewayId = paymentId.toString();
 
-          let statusAtualizado = pagamento.status
-
-          switch (paymentData.status) {
-            case "approved":
-              statusAtualizado = "aprovado"
-              break
-            case "rejected":
-              statusAtualizado = "rejeitado"
-              break
-            case "cancelled":
-              statusAtualizado = "cancelado"
-              break
-          }
-
-          if (statusAtualizado !== pagamento.status) {
-            await pagamento.update({ status: statusAtualizado })
-          }
-        } catch (mpError) {
-          console.error("Erro ao verificar status no MP:", mpError)
-        }
+      let novoStatusLocal;
+      switch (paymentDetails.status) {
+        case 'approved':
+          novoStatusLocal = 'aprovado';
+          break;
+        case 'rejected':
+        case 'cancelled':
+          novoStatusLocal = 'recusado';
+          break;
+        case 'pending':
+        case 'in_process':
+          novoStatusLocal = 'pendente';
+          break;
+        default:
+          novoStatusLocal = pagamento.status;
+          break;
+      }
+      
+      if (pagamento.status !== novoStatusLocal) {
+          pagamento.status = novoStatusLocal;
+          await pagamento.save();
+          console.log(`Pagamento do Pedido ${pedidoId} atualizado para '${novoStatusLocal}'.`);
       }
 
-      return pagamento
-    } catch (error) {
-      throw error
-    }
-  },
+      // --- 3. MODIFICAÇÃO PARA INCLUIR DADOS DO CLIENTE PARA O E-MAIL ---
+      const pedido = await Pedido.findByPk(pedidoId, { 
+        include: [{ model: User, as: 'cliente' }] 
+      });
 
-  async listarPagamentos(filtros = {}) {
-    try {
-      const { usuarioId, status, page = 1, limit = 10 } = filtros
-      const where = {}
+      if (!pedido) {
+          console.error(`Webhook: Pedido ${pedidoId} não encontrado no banco para atualização de status.`);
+          return;
+      }
 
-      if (usuarioId) where.usuarioId = usuarioId
-      if (status) where.status = status
+      if (novoStatusLocal === 'aprovado' && pedido.status === 'Aguardando Pagamento') {
+        pedido.status = 'Processando';
+        await pedido.save();
+        console.log(`Pedido ${pedidoId} atualizado para 'Processando'.`);
 
-      const offset = (page - 1) * limit
+        // --- 4. CHAMAR O SERVIÇO DE E-MAIL ---
+        await emailService.enviarConfirmacaoPedido(pedido);
+        // --- FIM DA CHAMADA ---
 
-      const { count, rows } = await Pagamento.findAndCountAll({
-        where,
-        include: [{ model: Pedido }, { model: Usuario, attributes: ["nome", "email"] }],
-        limit: Number.parseInt(limit),
-        offset,
-        order: [["createdAt", "DESC"]],
-      })
-
-      return {
-        pagamentos: rows,
-        total: count,
-        totalPages: Math.ceil(count / limit),
-        currentPage: Number.parseInt(page),
+      } else if (novoStatusLocal === 'recusado' && pedido.status === 'Aguardando Pagamento') {
+        pedido.status = 'Cancelado';
+        await pedido.save();
+        console.log(`Pedido ${pedidoId} atualizado para 'Cancelado'.`);
       }
     } catch (error) {
-      throw error
+      console.error("Erro ao processar webhook do Mercado Pago:", error);
+      // Não relança o erro aqui para evitar que o Mercado Pago fique tentando reenviar o webhook indefinidamente por um erro interno nosso.
     }
   },
-}
+};
 
-module.exports = pagamentoService
+module.exports = pagamentoService;

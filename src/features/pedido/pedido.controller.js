@@ -1,20 +1,23 @@
 // Salve em: src/features/pedido/pedido.controller.js
 const pedidoService = require('./pedido.service');
 
-const createPedidoController = async (req, res) => {
+const createPedidoController = async (req, res, next) => { // <-- Adicionado 'next'
   try {
-    const userId = req.user ? req.user.id : null;
-    const pedido = await pedidoService.createPedidoService(req.body, userId);
+    const userId = req.user.id;
+    // Passa req.body, userId e agora req.files para o serviço
+    const pedido = await pedidoService.createPedidoService(req.body, userId, req.files);
     res.status(201).json({ 
       message: 'Pedido criado com sucesso!',
       pedido: {
         id: pedido.id,
+        protocolo: pedido.protocolo,
         status: pedido.status,
         valorTotal: pedido.valorTotal,
       } 
     });
   } catch (error) {
-    res.status(error.statusCode || 500).json({ message: error.message || 'Erro interno ao criar o pedido.' });
+    // Usa o novo errorHandler global
+    next(error);
   }
 };
 

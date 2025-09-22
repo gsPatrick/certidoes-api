@@ -6,6 +6,7 @@ const {
   getPedidoDetailsAdminController,
   updatePedidoAdminController,
   uploadArquivoAdminController,
+  estornarPedidoController
 } = require('./admin.controller');
 
 const router = express.Router();
@@ -32,5 +33,10 @@ router.put('/pedidos/:id', updatePedidoAdminController);
 // @desc    Faz o upload de um arquivo para um pedido
 // @access  Private (Admin)
 router.post('/pedidos/:id/upload', upload.single('arquivoCertidao'), uploadArquivoAdminController);
+
+// @route   POST /api/admin/pedidos/:id/estornar
+// @desc    Realiza o estorno de um pedido pago
+// @access  Private (Admin)
+router.post('/pedidos/:id/estornar', estornarPedidoController);
 
 module.exports = router;

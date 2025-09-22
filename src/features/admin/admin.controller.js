@@ -39,9 +39,19 @@ const uploadArquivoAdminController = async (req, res) => {
   }
 };
 
+const estornarPedidoController = async (req, res, next) => {
+  try {
+    const result = await adminService.estornarPedidoService(req.params.id);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error); // Deixa o errorHandler global cuidar do erro
+  }
+};
+
 module.exports = {
   listAllPedidosController,
   getPedidoDetailsAdminController,
   updatePedidoAdminController,
   uploadArquivoAdminController,
+  estornarPedidoController
 };

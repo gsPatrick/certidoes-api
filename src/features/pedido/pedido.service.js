@@ -14,46 +14,41 @@ const log = (message) => {
  * Cria um novo pedido.
  */
 
-const createPedidoService = async (pedidoData, userId) => {
+const createPedidoService = async (pedidoData, userId, files) => { // <-- 1. RECEBE 'files'
   const { itens, dadosCliente } = pedidoData;
 
-  // Validações... (código existente omitido por brevidade)
-  if (!itens || !Array.isArray(itens) || itens.length === 0) {
+  // Validações
+  if (!itens || !Array.isArray(JSON.parse(itens)) || JSON.parse(itens).length === 0) {
     const error = new Error("O pedido deve conter pelo menos um item.");
     error.statusCode = 400;
     throw error;
   }
-  if (!dadosCliente || !dadosCliente.nome || !dadosCliente.email || !dadosCliente.cpf) {
+  const parsedDadosCliente = JSON.parse(dadosCliente);
+  if (!parsedDadosCliente || !parsedDadosCliente.nome || !parsedDadosCliente.email || !parsedDadosCliente.cpf) {
       const error = new Error("Dados do cliente (nome, email, cpf) são obrigatórios.");
       error.statusCode = 400;
       throw error;
   }
+  
+  const parsedItens = JSON.parse(itens);
 
   const transaction = await sequelize.transaction();
   try {
-    log('Iniciando criação de pedido...');
-    const valorTotal = itens.reduce((acc, item) => acc + (parseFloat(item.price) || 0), 0);
+    const valorTotal = parsedItens.reduce((acc, item) => acc + (parseFloat(item.price) || 0), 0);
 
     const novoPedido = await Pedido.create({
-      userId: userId,
-      dadosCliente: dadosCliente,
+      userId,
+      dadosCliente: parsedDadosCliente,
       status: 'Aguardando Pagamento',
-      valorTotal: valorTotal,
+      valorTotal,
       cartorioId: null,
     }, { transaction });
     
-    // --- CORREÇÃO: GERANDO E SALVANDO O PROTOCOLO ---
     const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    novoPedido.protocolo = `EC${year}${month}${day}-${novoPedido.id}`;
-    await novoPedido.save({ transaction }); // Salva o protocolo dentro da mesma transação
-    // --- FIM DA CORREÇÃO ---
+    novoPedido.protocolo = `EC${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}-${novoPedido.id}`;
+    await novoPedido.save({ transaction });
     
-    log(`Pedido #${novoPedido.id} (Protocolo: ${novoPedido.protocolo}) criado. Adicionando itens...`);
-
-    const itensParaSalvar = itens.map(item => ({
+    const itensParaSalvar = parsedItens.map(item => ({
       pedidoId: novoPedido.id,
       nomeProduto: item.name,
       slugProduto: item.slug,
@@ -62,17 +57,31 @@ const createPedidoService = async (pedidoData, userId) => {
     }));
     
     await ItemPedido.bulkCreate(itensParaSalvar, { transaction });
+    
+    // --- 2. LÓGICA PARA SALVAR OS ANEXOS DO CLIENTE ---
+    if (files && files.length > 0) {
+        const arquivosParaSalvar = files.map(file => ({
+            pedidoId: novoPedido.id,
+            nomeOriginal: file.originalname,
+            path: file.filename,
+            tipo: 'comprovante', // Tipo para arquivos do cliente
+        }));
+        await ArquivoPedido.bulkCreate(arquivosParaSalvar, { transaction });
+    }
+    // --- FIM DA LÓGICA ---
 
     await transaction.commit();
-    log(`✅ Pedido #${novoPedido.id} finalizado com sucesso.`);
     return novoPedido;
 
   } catch (error) {
     await transaction.rollback();
-    log(`❌ Erro ao criar pedido: ${error.message}`);
-    if (!error.statusCode) {
-        console.error('Erro detalhado no banco de dados:', error);
-        throw new Error('Falha ao processar o pedido no banco de dados.');
+    console.error(`Erro ao criar pedido: ${error.message}`);
+    // Limpa arquivos órfãos em caso de erro no banco
+    if (files && files.length > 0) {
+        files.forEach(file => {
+            const filePath = path.resolve(process.cwd(), 'uploads', file.filename);
+            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        });
     }
     throw error;
   }

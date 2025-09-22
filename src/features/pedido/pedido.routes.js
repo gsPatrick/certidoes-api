@@ -7,13 +7,15 @@ const {
     downloadArquivoController
 } = require('./pedido.controller');
 const { protect } = require('../../middlewares/auth.middleware');
+const uploadAnexos = require('../../middlewares/anexos.middleware'); // <-- 1. IMPORTE O NOVO MIDDLEWARE
 
 const router = express.Router();
 
 // @route   POST /api/pedidos
 // @desc    Cria um novo pedido para o usuário autenticado.
-// @access  Private (CORRIGIDO: Agora requer login)
-router.post('/', protect, createPedidoController); // <-- CORREÇÃO APLICADA AQUI
+// @access  Private
+// <-- 2. ADICIONE O MIDDLEWARE DE UPLOAD AQUI -->
+router.post('/', protect, uploadAnexos, createPedidoController);
 
 // @route   GET /api/pedidos/meus-pedidos
 // @desc    Lista os pedidos do usuário autenticado.
