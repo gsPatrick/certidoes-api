@@ -1,9 +1,12 @@
+
+
 const express = require('express');
 const { 
   syncCartoriosController, 
   getCartoriosController, 
   getEstadosController, 
-  getCidadesController 
+  getCidadesController,
+  contarCartoriosProtestoController // <-- 1. Importa o novo controller
 } = require('./cartorio.controller');
 const { protect, authorize } = require('../../middlewares/auth.middleware');
 
@@ -24,7 +27,12 @@ router.get('/estados', getEstadosController);
 // Exemplo: /api/cartorios/estados/SP/cidades
 router.get('/estados/:estado/cidades', getCidadesController);
 
-
+// --- NOVA ROTA PARA CONTAGEM DE CARTÓRIOS DE PROTESTO ---
+// @route   GET /api/cartorios/contar-protesto
+// @desc    Conta quantos cartórios de protesto existem em uma cidade
+// @access  Public
+// Exemplo: /api/cartorios/contar-protesto?estado=SP&cidade=SAO PAULO
+router.get('/contar-protesto', contarCartoriosProtestoController); // <-- 2. Adiciona a nova rota
 
 
 module.exports = router;

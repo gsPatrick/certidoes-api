@@ -1,3 +1,5 @@
+// Salve em: src/features/cartorio/cartorio.controller.js
+
 const cartorioService = require('./cartorio.service');
 
 // Mantido para uso futuro pelo Admin
@@ -41,11 +43,27 @@ const getCidadesController = async (req, res) => {
   }
 };
 
-// REMOVIDO: O controller getCartoriosPorCidadeController foi removido por ser redundante.
+// --- NOVO CONTROLLER PARA A CONTAGEM ---
+const contarCartoriosProtestoController = async (req, res, next) => {
+  try {
+    const { estado, cidade } = req.query;
+    if (!estado || !cidade) {
+      const error = new Error("Estado e cidade são obrigatórios para a contagem.");
+      error.statusCode = 400;
+      throw error;
+    }
+    const count = await cartorioService.contarCartoriosProtestoService(estado, cidade);
+    res.status(200).json({ count });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 module.exports = {
   syncCartoriosController,
   getCartoriosController,
   getEstadosController,
   getCidadesController,
+  contarCartoriosProtestoController, // <-- Exporta o novo controller
 };

@@ -1,3 +1,5 @@
+// Salve em: src/features/cartorio/cartorio.service.js
+
 // ATENÇÃO: Adicione o 'axios' para fazer chamadas de API
 const axios = require('axios'); 
 const { sequelize } = require("sequelize"); 
@@ -37,7 +39,7 @@ const atribuicaoKeywords = {
     '1': ['NOTAS', 'NOTARIAL', 'TABELIONATO'], // Notas
     '2': ['PROTESTO'], // Protesto de Títulos
     '3': ['REGISTRO CIVIL', 'PESSOAS NATURAIS'], // Registro Civil
-    '4': ['REGISTRO DE IMOVEIS', 'IMÓVEIS', 'IMOVEL'], // Registro de Imóveis
+    '4': ['REGISTRO DE IMOVEIS', 'IMÓVEIS', 'IMOVEL', 'HIPOTECAS'], // Registro de Imóveis
 };
 
 // --- FUNÇÃO DE SINCRONIZAÇÃO (Mantida para uso administrativo, mas não para as buscas do site) ---
@@ -180,25 +182,17 @@ const getCartoriosService = async (filters) => {
             const keywords = atribuicaoKeywords[atribuicaoId] || [];
 
             resultados = resultados.filter(cartorio => {
-                // Regra 1: Verifica se a atribuição está na lista de IDs do cartório (se houver)
-                // Assumindo que a API retorna um campo 'atribuicoes' como "1,4,2"
-                const atribuicoesDoCartorio = (cartorio.atribuicoes || '').split(',');
-                if (atribuicoesDoCartorio.includes(atribuicaoId)) {
-                    return true;
-                }
-
-                // Regra 2: Verifica se o nome do cartório contém palavras-chave (para cartórios genéricos)
                 const nomeCartorio = cartorio.denominacao.toUpperCase();
+                // Regra principal: Apenas inclui se o nome contiver uma das palavras-chave da atribuição.
+                // Isso resolve o problema de trazer cartórios de "Títulos e Documentos" em uma busca de "Imóveis".
                 if (keywords.some(keyword => nomeCartorio.includes(keyword))) {
                     return true;
                 }
-                
-                // Regra 3 (Obs. c): Se o cartório não tem especialidade no nome, ele é "genérico".
-                // Se nenhuma palavra-chave de NENHUMA categoria for encontrada, ele pode servir para várias coisas.
-                // Esta regra é complexa e pode gerar falsos positivos, mas incluímos para abranger tudo.
-                const todasKeywords = Object.values(atribuicaoKeywords).flat();
-                if (!todasKeywords.some(keyword => nomeCartorio.includes(keyword))) {
-                    return true; // É um cartório genérico (ex: "1º Tabelionato de Cidade Tal")
+
+                // Regra secundária: Verifica se a atribuição está na lista de IDs do cartório (se a API retornar)
+                const atribuicoesDoCartorio = (cartorio.atribuicoes || '').split(',');
+                if (atribuicoesDoCartorio.includes(atribuicaoId)) {
+                    return true;
                 }
 
                 return false;
@@ -206,13 +200,39 @@ const getCartoriosService = async (filters) => {
         }
         // --- FIM DA LÓGICA DE FILTRAGEM ---
 
+        // --- INÍCIO DA MODIFICAÇÃO: ORDENAÇÃO E REMOÇÃO DE DUPLICATAS ---
+
+        // 1. Mapeia e formata os resultados primeiro
         const cartoriosFormatados = resultados.map(c => ({
-            value: c.cns, // ALTERADO: Usar o CNS como valor único
+            value: c.cns,
             label: formatarNomeCartorio(c.denominacao)
         }));
 
-        log(`Encontrados ${cartoriosFormatados.length} cartórios em ${cidade}/${estado} após filtragem.`);
-        return cartoriosFormatados;
+        // 2. Ordena a lista com base no número do ofício/serviço no nome
+        cartoriosFormatados.sort((a, b) => {
+            const numA = parseInt(a.label.match(/^\d+/), 10) || Infinity;
+            const numB = parseInt(b.label.match(/^\d+/), 10) || Infinity;
+            if (numA !== numB) {
+                return numA - numB;
+            }
+            return a.label.localeCompare(b.label); // Se não houver número, ordena alfabeticamente
+        });
+
+        // 3. Remove duplicatas com base no nome (label)
+        const cartoriosUnicos = [];
+        const labelsVistos = new Set();
+        for (const cartorio of cartoriosFormatados) {
+            if (!labelsVistos.has(cartorio.label)) {
+                labelsVistos.add(cartorio.label);
+                cartoriosUnicos.push(cartorio);
+            }
+        }
+        
+        // --- FIM DA MODIFICAÇÃO ---
+
+
+        log(`Encontrados ${cartoriosUnicos.length} cartórios em ${cidade}/${estado} após filtragem, ordenação e remoção de duplicatas.`);
+        return cartoriosUnicos; // Retorna a lista final tratada
 
     } else {
         const errorMessage = body.code_message || 'Resposta inválida da API Infosimples.';
@@ -225,9 +245,29 @@ const getCartoriosService = async (filters) => {
   }
 };
 
+// --- NOVA FUNÇÃO PARA CONTAR CARTÓRIOS DE PROTESTO ---
+const contarCartoriosProtestoService = async (estado, cidade) => {
+  log(`Contando cartórios de protesto para ${cidade}/${estado}.`);
+  try {
+    // Reutiliza a função de busca de cartórios, passando o ID de atribuição de Protesto ('2')
+    const cartoriosDeProtesto = await getCartoriosService({
+      estado,
+      cidade,
+      atribuicaoId: '2', 
+    });
+    // Retorna apenas a quantidade
+    return cartoriosDeProtesto.length;
+  } catch (error) {
+    log(`Erro ao contar cartórios de protesto: ${error.message}`);
+    // Repassa o erro para o controller
+    throw error;
+  }
+};
+
 module.exports = {
   syncCartoriosService,
   getCartoriosService,
   getEstadosService,
   getCidadesPorUFService,
+  contarCartoriosProtestoService, // <-- Exporta a nova função
 };
