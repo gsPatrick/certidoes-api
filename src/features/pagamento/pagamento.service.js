@@ -140,6 +140,5 @@ const pagamentoService = {
     }
   },
 };
-};
 
 module.exports = pagamentoService;
