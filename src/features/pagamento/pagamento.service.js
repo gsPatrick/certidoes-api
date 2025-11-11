@@ -83,7 +83,12 @@ const pagamentoService = {
       }
 
       const paymentId = dados.data.id;
-      const { body: paymentDetails } = await mercadopago.payment.findById(Number(paymentId));
+      
+      // --- CORREÇÃO APLICADA AQUI ---
+      // Remova a conversão Number(). O ID do pagamento deve ser tratado como string.
+      const { body: paymentDetails } = await mercadopago.payment.findById(paymentId);
+      // --- FIM DA CORREÇÃO ---
+
       const pedidoId = paymentDetails.external_reference;
 
       if (!pedidoId) {
@@ -122,7 +127,6 @@ const pagamentoService = {
         await pedido.save();
         console.log(`Pedido ${pedidoId} atualizado para 'Processando'.`);
         
-        // Envia e-mail de confirmação para o cliente
         await emailService.enviarConfirmacaoPedido(pedido);
 
       } else if (novoStatusLocal === 'recusado' && pedido.status === 'Aguardando Pagamento') {
@@ -131,10 +135,11 @@ const pagamentoService = {
         console.log(`Pedido ${pedidoId} atualizado para 'Cancelado'.`);
       }
     } catch (error) {
-      console.error("Erro ao processar webhook do Mercado Pago:", error);
-      throw error;
+      console.error("Erro ao processar webhook do Mercado Pago:", error.message);
+      // Não jogue o erro aqui para não fazer o processo do webhook parar para o MP
     }
   },
+};
 };
 
 module.exports = pagamentoService;
