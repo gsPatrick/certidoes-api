@@ -6,9 +6,6 @@ const emailService = require('../../services/email.service');
 const pagamentoService = {
   /**
    * Cria uma preferência de pagamento no Mercado Pago para um pedido.
-   * @param {number} pedidoId - O ID do pedido criado no nosso banco.
-   * @param {number} userId - O ID do usuário logado.
-   * @returns {object} - A URL de checkout e o ID da preferência.
    */
   async criarPreferenciaPagamento(pedidoId, userId) {
     try {
@@ -44,9 +41,15 @@ const pagamentoService = {
           pending: `${process.env.FRONTEND_URL}/meus-pedidos/${pedidoId}?status=pendente`,
         },
         auto_return: 'approved',
+        
+        // --- CORREÇÃO AQUI ---
         payment_methods: {
-            installments: 3 // Permite parcelar em até 3x
+            excluded_payment_types: [], // Garante que não exclui Boleto nem Pix
+            excluded_payment_methods: [] // Garante que não exclui nenhuma bandeira
+            // REMOVIDO: installments: null (Isso causava o erro. Sem essa linha, o MP libera o máximo padrão)
         },
+        // ---------------------
+
         external_reference: pedidoId.toString(),
         notification_url: `${process.env.BACKEND_URL}/api/pagamentos/webhook`,
       };
@@ -57,7 +60,7 @@ const pagamentoService = {
         pedidoId: pedidoId,
         gatewayId: response.body.id,
         status: 'pendente',
-        metodo: 'mercadopago', // CORRIGIDO: Valor compatível com o ENUM do banco
+        metodo: 'mercadopago', 
         valor: pedido.valorTotal,
       });
 
@@ -73,22 +76,24 @@ const pagamentoService = {
 
   /**
    * Processa as notificações de webhook do Mercado Pago.
-   * @param {object} dados - O corpo da notificação do webhook.
    */
   async processarWebhook(dados) {
     try {
-      if (dados.type !== 'payment') {
-        console.log(`Webhook do tipo '${dados.type}' ignorado.`);
+      const type = dados.type || dados.topic;
+      
+      if (type !== 'payment') {
+        console.log(`Webhook do tipo '${type}' ignorado.`);
         return;
       }
 
-      const paymentId = dados.data.id;
+      const paymentId = (dados.data && dados.data.id) ? dados.data.id : dados.id;
       
-      // --- CORREÇÃO APLICADA AQUI ---
-      // Remova a conversão Number(). O ID do pagamento deve ser tratado como string.
-      const { body: paymentDetails } = await mercadopago.payment.findById(paymentId);
-      // --- FIM DA CORREÇÃO ---
+      if (!paymentId) {
+          console.log('ID do pagamento não encontrado no webhook.');
+          return;
+      }
 
+      const { body: paymentDetails } = await mercadopago.payment.findById(paymentId);
       const pedidoId = paymentDetails.external_reference;
 
       if (!pedidoId) {
@@ -112,16 +117,29 @@ const pagamentoService = {
         case 'cancelled': novoStatusLocal = 'recusado'; break;
         case 'pending':
         case 'in_process': novoStatusLocal = 'pendente'; break;
+        case 'refunded': novoStatusLocal = 'estornado'; break;
         default: novoStatusLocal = pagamento.status; break;
       }
       
       if (pagamento.status !== novoStatusLocal) {
           pagamento.status = novoStatusLocal;
+          
+          if (paymentDetails.payment_method_id) {
+              if (paymentDetails.payment_method_id === 'pix') {
+                  pagamento.metodo = 'pix';
+              } else if (paymentDetails.payment_method_id === 'bolbradesco' || paymentDetails.payment_method_id.includes('bol')) {
+                  pagamento.metodo = 'boleto';
+              } else {
+                  pagamento.metodo = 'cartao_credito';
+              }
+          }
+          
           await pagamento.save();
           console.log(`Pagamento do Pedido ${pedidoId} atualizado para '${novoStatusLocal}'.`);
       }
 
       const pedido = await Pedido.findByPk(pedidoId, { include: [{ model: User, as: 'cliente' }] });
+      
       if (novoStatusLocal === 'aprovado' && pedido.status === 'Aguardando Pagamento') {
         pedido.status = 'Processando';
         await pedido.save();
@@ -136,7 +154,6 @@ const pagamentoService = {
       }
     } catch (error) {
       console.error("Erro ao processar webhook do Mercado Pago:", error.message);
-      // Não jogue o erro aqui para não fazer o processo do webhook parar para o MP
     }
   },
 };
